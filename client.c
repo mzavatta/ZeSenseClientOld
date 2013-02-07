@@ -63,6 +63,47 @@ set_timeout(coap_tick_t *timer, const unsigned int seconds) {
   *timer += seconds * COAP_TICKS_PER_SECOND;
 }
 
+/* NOTE: Must match hardware/sensors.h */
+typedef struct ASensorVector {
+    union {
+        float v[3];
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+        struct {
+            float azimuth;
+            float pitch;
+            float roll;
+        };
+    };
+    int8_t status;
+    uint8_t reserved[3];
+} ASensorVector;
+
+/* NOTE: Must match hardware/sensors.h */
+typedef struct ASensorEvent {
+	int64_t s1;
+	int s2;
+    int32_t version; /* sizeof(struct ASensorEvent) */
+    int32_t sensor;
+    int32_t type;
+    int32_t reserved0;
+    int64_t timestamp;
+    union {
+        float           data[16];
+        ASensorVector   vector;
+        ASensorVector   acceleration;
+        ASensorVector   magnetic;
+        float           temperature;
+        float           distance;
+        float           light;
+        float           pressure;
+    };
+    int32_t reserved1[4];
+} ASensorEvent;
+
 int
 append_to_output(const unsigned char *data, size_t len) {
   size_t written;
@@ -78,12 +119,21 @@ append_to_output(const unsigned char *data, size_t len) {
     }
   }
 
+  /* Custom output. */
+  ASensorEvent *ev = (ASensorEvent*)data;
+  printf("len%d sizeof%d \n s%d t%d x=%f y=%f z=%f", len, sizeof(ASensorEvent), ev->sensor, ev->type,
+			ev->acceleration.x, ev->acceleration.y,
+			ev->acceleration.z);
+
+
+  /*
   do {
     written = fwrite(data, 1, len, file);
     len -= written;
     data += written;
   } while ( written && len );
   fflush(file);
+  */
 
   return 0;
 }
