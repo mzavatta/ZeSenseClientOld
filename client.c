@@ -105,7 +105,7 @@ typedef struct ASensorEvent {
 } ASensorEvent;
 
 int
-append_to_output(const unsigned char *data, size_t len) {
+append_to_output(const unsigned char *data, size_t len, int mid) {
   size_t written;
 
   if (!file) {
@@ -121,9 +121,9 @@ append_to_output(const unsigned char *data, size_t len) {
 
   /* Custom output. */
   ASensorEvent *ev = (ASensorEvent*)data;
-  printf("len%d sizeof%d \n s%d t%d x=%f y=%f z=%f", len, sizeof(ASensorEvent), ev->sensor, ev->type,
+  printf("len%d sizeof%d \n s%d t%d x=%f y=%f z=%f mid%d\n", len, sizeof(ASensorEvent), ev->sensor, ev->type,
 			ev->acceleration.x, ev->acceleration.y,
-			ev->acceleration.z);
+			ev->acceleration.z, mid);
 
 
   /*
@@ -335,6 +335,8 @@ message_handler(struct coap_context_t  *ctx,
 		coap_pdu_t *received,
 		const coap_tid_t id) {
 
+	/*h(context, resource, &node->remote, node->pdu, &token, response);*/
+
   coap_pdu_t *pdu = NULL;
   coap_opt_t *block_opt;
   coap_opt_iterator_t opt_iter;
@@ -363,6 +365,7 @@ message_handler(struct coap_context_t  *ctx,
 
   switch (received->hdr->type) {
   case COAP_MESSAGE_CON:
+	printf("Sending ACK mid%d", received->hdr->id);
     /* acknowledge received response if confirmable (TODO: check Token) */
     coap_send_ack(ctx, remote, received);
     break;
@@ -379,6 +382,7 @@ message_handler(struct coap_context_t  *ctx,
     /* set obs timer if we have successfully subscribed a resource */
     if (sent && coap_check_option(received, COAP_OPTION_SUBSCRIPTION, &opt_iter)) {
       debug("observation relationship established, set timeout to %d\n", obs_seconds);
+      printf("observation relationship established, set timeout to %d\n", obs_seconds);
       set_timeout(&obs_wait, obs_seconds);
     }
     
@@ -388,13 +392,13 @@ message_handler(struct coap_context_t  *ctx,
     if (!block_opt) {
       /* There is no block option set, just read the data and we are done. */
       if (coap_get_data(received, &len, &databuf))
-	append_to_output(databuf, len);
+	append_to_output(databuf, len, received->hdr->id);
     } else {
       unsigned short blktype = opt_iter.type;
 
       /* TODO: check if we are looking at the correct block number */
       if (coap_get_data(received, &len, &databuf))
-	append_to_output(databuf, len);
+	append_to_output(databuf, len, received->hdr->id);
 
       if (COAP_OPT_BLOCK_MORE(block_opt)) {
 	/* more bit is set */
@@ -1139,7 +1143,7 @@ main(int argc, char **argv) {
 		order_opts);
   }
 
-  /* set block option if requested at commandline */
+  /* set block option if requested at command line */
   if (flags & FLAGS_BLOCK)
     set_blocksize();
 
